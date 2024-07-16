@@ -7,7 +7,8 @@ import matplotlib as plt
 #! WORK IN PROGRESS 
 
 #TODO: Load contact matrix from JSON
-#TODO: Accept Newick trees for final data pack
+#TODO: Add residue distance in final output matrix
+#TODO: Accept Newick trees for final data package
 #TODO: Add output as JSON
 #TODO: Add extra error checkpoints
 #TODO: Add Customizability (thresholds etc.) and API Calls format
