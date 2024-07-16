@@ -20,3 +20,10 @@ Example Output (alignement_contacts):
 
 * 1 at [0, 3] and [3, 0] means that residues 1 & 4 are in contact
 * 0 at [0, 1] and [1, 0] means that residues 1 and 2 are not in contact
+
+
+Functions:
+
+create_pdb_to_alignment_mapping: Creates a dictionary of the mapping from the PDB position to the Alignment position
+load_pdb_and_generate_contacts: Loads and creates contact matrix
+map_contacts_to_alignment: Creates the previously described matrix
