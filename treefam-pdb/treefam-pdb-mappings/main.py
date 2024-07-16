@@ -99,8 +99,8 @@ def visualize_results(contact_matrix, alignment_contacts, pdb_sequence, matching
     pass
 
 # Main workflow
-pdb_file = "data/1jnx.pdb"
-treefam_alignment_file = "data/TF105060.fa"
+pdb_file = "samples/1jnx.pdb"
+treefam_alignment_file = "samples/TF105060.fa"
 contact_matrix, pdb_sequence = load_pdb_and_generate_contacts(pdb_file)
 treefam_alignment = load_treefam_alignment(treefam_alignment_file)
 pdb_to_aln_mapping, matching_seq_id = create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment)
