@@ -1,20 +1,19 @@
+import numpy as np
+import pandas as pd
+import matplotlib as plt
+
 from Bio import SeqIO, AlignIO, Align
 from Bio.PDB import PDBParser
-import numpy as np
 from Bio.SeqUtils import seq1 as three2one
-import matplotlib as plt
+
+from utils import csv2numpy, numpy2csv
  
 #! WORK IN PROGRESS 
 
 #TODO: Load contact matrix from JSON
 #TODO: Add residue distance in final output matrix
 #TODO: Accept Newick trees for final data package
-#TODO: Add output as JSON
-#TODO: Add extra error checkpoints
-#TODO: Add Customizability (thresholds etc.) and API Calls format
-#TODO: Add filtration system to load files
 #TODO: Add matplotlib to visualize results
-#TODO: Annotate code for repo
 #TODO: Reformat + Annotate Code
 #TODO: Format output matrix for NN use
 #TODO: Format output matrix for JBrowse use 
@@ -42,7 +41,7 @@ def load_pdb_and_generate_contacts(pdb_file, distance_threshold=8.0):
 def load_treefam_alignment(alignment_file):
     return AlignIO.read(alignment_file, "fasta")
 
-def create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment):
+def create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment, match_threshold):
     aligner = Align.PairwiseAligner()
     aligner.mode = 'local'
     aligner.match_score = 2
@@ -67,7 +66,7 @@ def create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment):
     print(f"PDB sequence length: {len(pdb_sequence)}")
     print(f"Best matching sequence length: {len(str(best_record.seq))}")
 
-    if best_score > 1.5:  # Adjust this threshold as needed
+    if best_score > match_threshold:  # Adjust this threshold as needed
         pdb_to_aln = {}
         aligned_pdb, aligned_treefam = best_alignment.aligned
         pdb_start = aligned_pdb[0][0]
@@ -94,16 +93,31 @@ def map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, alignment_leng
                     alignment_contacts[aln_i, aln_j] = 1
     return alignment_contacts
 
+#Main workflow
+def mapping(alignment, pdb_sequence, contact_matrix, out, match_threshold=1.5):
+    pdb2aln, matchingID = create_pdb_to_alignment_mapping(pdb_sequence, alignment, match_threshold)
+    alignment_contacts = map_contacts_to_alignment(contact_matrix, pdb2aln, len(alignment[0]))
+    numpy2csv(alignment_contacts, out)
+    return(alignment_contacts)
 
+#Simple Visualizer
 def visualize_results(contact_matrix, alignment_contacts, pdb_sequence, matching_seq_id):
     pass
 
-# Main workflow
-pdb_file = "samples/1jnx.pdb"
-treefam_alignment_file = "samples/TF105060.fa"
-contact_matrix, pdb_sequence = load_pdb_and_generate_contacts(pdb_file)
-treefam_alignment = load_treefam_alignment(treefam_alignment_file)
-pdb_to_aln_mapping, matching_seq_id = create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment)
-alignment_contacts = map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, len(treefam_alignment[0]))
+#Testing Workflow
+if __name__ == "__main__":
+    
+    pdb_file = "treefam-pdb/treefam-pdb-mappings/samples/1jnx.pdb"
+    treefam_alignment_file = "treefam-pdb/treefam-pdb-mappings/samples/TF105060.fa"
+    contact_matrix, pdb_sequence = load_pdb_and_generate_contacts(pdb_file)
+    treefam_alignment = load_treefam_alignment(treefam_alignment_file)
+    pdb_to_aln_mapping, matching_seq_id = create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment)
+    alignment_contacts = map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, len(treefam_alignment[0]))
 
-visualize_results(contact_matrix, alignment_contacts, pdb_sequence, matching_seq_id)
+    print(alignment_contacts.shape)
+    numpy2csv(alignment_contacts, "mapping.csv")
+    new = csv2numpy("mapping.csv")
+    print(new.shape)
+    numpy2csv(new, "mapping2.csv")
+
+    visualize_results(contact_matrix, alignment_contacts, pdb_sequence, matching_seq_id)
