@@ -1,22 +1,16 @@
 import numpy as np
-import pandas as pd
 import matplotlib as plt
 
 from Bio import SeqIO, AlignIO, Align
 from Bio.PDB import PDBParser
 from Bio.SeqUtils import seq1 as three2one
 
-from utils import csv2numpy, numpy2csv
+from utils import csv2numpy, numpy2csv, numpy2json, json2numpy
  
 #! WORK IN PROGRESS 
 
-#TODO: Load contact matrix from JSON
-#TODO: Add residue distance in final output matrix
-#TODO: Accept Newick trees for final data package
 #TODO: Add matplotlib to visualize results
 #TODO: Reformat + Annotate Code
-#TODO: Format output matrix for NN use
-#TODO: Format output matrix for JBrowse use 
 
 # Load PDB structure and generate contact matrix
 def load_pdb_and_generate_contacts(pdb_file, distance_threshold=8.0):
@@ -86,18 +80,21 @@ def map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, alignment_leng
     alignment_contacts = np.zeros((alignment_length, alignment_length))
     for i in range(contact_matrix.shape[0]):
         for j in range(contact_matrix.shape[1]):
-            if contact_matrix[i, j] == 1:
-                if i in pdb_to_aln_mapping and j in pdb_to_aln_mapping:
-                    aln_i = pdb_to_aln_mapping[i]
-                    aln_j = pdb_to_aln_mapping[j]
-                    alignment_contacts[aln_i, aln_j] = 1
+            if i in pdb_to_aln_mapping and j in pdb_to_aln_mapping:
+                aln_i = pdb_to_aln_mapping[i]
+                aln_j = pdb_to_aln_mapping[j]
+                alignment_contacts[aln_i, aln_j] = contact_matrix[i, j]
     return alignment_contacts
 
 #Main workflow
-def mapping(alignment, pdb_sequence, contact_matrix, out, match_threshold=1.5):
+def mapping(alignment_f, pdb_f, contact_matrix_f, out, match_threshold=1.5):
+    alignment = AlignIO.read(alignment_f, "fasta")
+    cm, pdb_sequence = load_pdb_and_generate_contacts(pdb_f)
+    contact_matrix = json2numpy(contact_matrix_f)
+    
     pdb2aln, matchingID = create_pdb_to_alignment_mapping(pdb_sequence, alignment, match_threshold)
     alignment_contacts = map_contacts_to_alignment(contact_matrix, pdb2aln, len(alignment[0]))
-    numpy2csv(alignment_contacts, out)
+    numpy2json(alignment_contacts, out)
     return(alignment_contacts)
 
 #Simple Visualizer
@@ -111,7 +108,7 @@ if __name__ == "__main__":
     treefam_alignment_file = "treefam-pdb/treefam-pdb-mappings/samples/TF105060.fa"
     contact_matrix, pdb_sequence = load_pdb_and_generate_contacts(pdb_file)
     treefam_alignment = load_treefam_alignment(treefam_alignment_file)
-    pdb_to_aln_mapping, matching_seq_id = create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment)
+    pdb_to_aln_mapping, matching_seq_id = create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment, 1.5)
     alignment_contacts = map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, len(treefam_alignment[0]))
 
     print(alignment_contacts.shape)

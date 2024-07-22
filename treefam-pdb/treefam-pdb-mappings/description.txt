@@ -1,9 +1,9 @@
-Dependencies: Biopython, Numpy
-Example Data in "data" folder - BRCA1 Sample Protein (completely arbitrary chosen from treefam examples)
+Dependencies: Biopython, Numpy, Pandas, Json, Matplotlib
+Example Data in "data" folder - BRCA1 Sample Protein (arbitrarily chosen from treefam examples)
 
 Constructs contact matrix, loads alignments - will be replaced by others' parts (currently proprietary and simple structured)
 
-Final alignment_contacts numpy matrix (Later to be formatted to JSON): 
+Final alignment_contacts numpy matrix: 
 * Dimensions: Alignment Length x Alignement Length
 * Axes: Residue I & Residue J
 * Values: 0 no contact between residues in the alignment column; 1 contact between residues in alignment column
