@@ -1,55 +1,74 @@
-import random as rnd
+#Krishna Bhatt @ Holmes Lab (UC Berkeley) 2024
+
+import numpy as np
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Button
 from matplotlib.text import Annotation
 import seaborn as sns
 
-#! WORK IN PROGRESS
-#* Right now just some code from a sample tutorial, creating a simple visualizer for the final data
+from utils import csv2numpy, numpy2csv, numpy2json, json2numpy
 
-sns.set()
-labels_color_map = {0: '#20b2aa', 1: '#ff7373'}
-no_examples = 50
-generated_data = [(x, rnd.randint(0, no_examples)) for x in range(0, no_examples)]
-generated_labels = ["Label for instance #{0}".format(i) for i in range(0, no_examples)]
+#Import and Load Alignment Contacts
 
-instances_colors = []
+alignment_contacts = json2numpy("mapping.json")
+contact_threshold = 10.0
+
+scatter_data = []
+scatter_info = []
+
+for i in range(len(alignment_contacts)):
+    for j in range(len(alignment_contacts[i])):
+        if alignment_contacts[i, j] < contact_threshold and alignment_contacts[i, j] >= 0 and i != j:
+            scatter_data += [(i+1, j+1)]
+            scatter_info += [alignment_contacts[i][j]]
+
+color_map = {0: '#fa4428', 1: '#fa9057', 2: '#fcd590'}
+
+colors = []
 axis_values_x = []
 axis_values_y = []
-for index, instance in enumerate(generated_data):
-    coordinate_x, coordinate_y = instance
-    color = labels_color_map[index % 2]
 
-    instances_colors.append(color)
-    axis_values_x.append(coordinate_x)
-    axis_values_y.append(coordinate_y)
+interval = contact_threshold/3
+for index, contact in enumerate(scatter_data):
+    res_i, res_j = contact
+    if alignment_contacts[res_i - 1, res_j - 1] >= 0 and alignment_contacts[res_i - 1, res_j - 1] < interval:
+        color = color_map[0]
+    elif alignment_contacts[res_i - 1, res_j - 1] >= interval and alignment_contacts[res_i - 1, res_j - 1] < interval*2:
+        color = color_map[1]
+    else:
+        color = color_map[2]
+        
+    
+    colors.append(color)
+    axis_values_x.append(res_i)
+    axis_values_y.append(res_j)
 
 fig = plt.figure(figsize=(20, 16))
 ax = plt.subplot()
 
-def draw_scatterplot():
+def drawplot():
     ax.scatter(
         axis_values_x,
         axis_values_y,
-        c=instances_colors,
+        c=colors,
         picker=True
-    )
-
-draw_scatterplot()
+    )    
+    
+drawplot()
 
 def annotate(axis, text, x, y):
-    text_annotation = Annotation(text, xy=(x, y), xycoords='data')
-    axis.add_artist(text_annotation)
-
+    annotation = Annotation(text, xy=(x, y), xycoords='data')
+    axis.add_artist(annotation)
 
 def onpick(event):
     ind = event.ind
     label_pos_x = event.mouseevent.xdata
     label_pos_y = event.mouseevent.ydata
     offset = 0
-
+    
     for i in ind:
-        label = generated_labels[i]
+        label = scatter_info[i]
         annotate(
             ax,
             label,
@@ -66,9 +85,10 @@ button_clear_all = Button(ax_clear_all, 'Clear all')
 
 def onclick(event):
     ax.cla()
-    draw_scatterplot()
+    drawplot()
     ax.figure.canvas.draw_idle()
 
 button_clear_all.on_clicked(onclick)
+
 plt.plot()
 plt.show()
