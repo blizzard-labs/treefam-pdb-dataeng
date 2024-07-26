@@ -2,6 +2,7 @@
 #Integrated Pipeline Product
 
 #! CONSTRUCTION IN PROGRESS
+# Key Protein Structure Segment Determination NOT tested (waiting on MSA 2 PDB mappings)
 
 #*
 #* Imports =======================================================================================================
