@@ -16,6 +16,7 @@ from Bio.PDB import PDBParser, Superimposer
 from Bio.SeqUtils import seq1 as three2one
 
 from utils import numpy2json, json2numpy
+from utils import cleanUp
 
 #*
 #* Data Loading ==================================================================================================
@@ -121,7 +122,7 @@ def pdb2tree_mapping(pdb_seq, tree_seq, match_threshold=1.5):
         
         return pdb2tree, score
     else:
-        raise ValueError("PDB Structure Sequence does not sufficiently match the TreeFam Residue Sequence")
+        raise ValueError("PDB Structure Sequence does not sufficiently match the TreeFam MSA Sequence")
 
 # Mapping distance matrix to treeFam alignment shape
 def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
@@ -141,7 +142,7 @@ def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
 #*
 
 # Determine key segments with similar residue sequences w/ diminishing scores
-def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
+def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
     
@@ -163,15 +164,15 @@ def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
         if not passed: score -= 1
                 
         if score > 0:
-            keySegs[-1].append(i+1)
+            keySegs[-1].append(i)
         elif len(keySegs[-1]) != 0:
             keySegs.append([])
     
-    return keySegs
+    return cleanUp(keySegs, minL)
 
 # Determine key segments with high contact density w/ diminishing scores
 # Inputs: seqDist_thresh (How far a residue has to be from each residue to be counted a contact), numContact_thresh (How many contacts a residue must have to be considered key)
-def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, strictness=2):
+def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, strictness=2, minL=5):
     score = 0
     contactSegs = [[]]
     
@@ -187,14 +188,14 @@ def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, stri
         else: score -= 1
                 
         if score > 0:
-            contactSegs[-1].append(i+1)
+            contactSegs[-1].append(i)
         elif len(contactSegs[-1]) != 0:
             contactSegs.append([])
     
-    return contactSegs
+    return cleanUp(contactSegs, minL)
 
 # Determine key segments of low structural variance w/ diminishing scores
-def keyVarAreas(variance, var_thresh=0.5, strictness=2):
+def keyVarAreas(variance, var_thresh=0.5, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
     
@@ -209,7 +210,7 @@ def keyVarAreas(variance, var_thresh=0.5, strictness=2):
         elif len(keySegs[-1]) != 0:
             keySegs.append([])
     
-    return keySegs
+    return cleanUp(keySegs, minL)
 
 #*
 #* Pipeline Integration & Testing ================================================================================

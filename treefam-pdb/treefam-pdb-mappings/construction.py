@@ -9,21 +9,11 @@ from Bio.PDB import PDBParser, Superimposer
 from Bio.SeqUtils import seq1 as three2one
 
 from utils import numpy2json, json2numpy, numpy2csv
+from utils import cleanUp
  
 #! CONSTRUCTION ZONE
 
 #TODO: Develop evolseqpair class type including contacts, alignment scores, function to determine evolutionary divergence (newick trees)
-# Feature-wise Evol closeness between sequences
-'''
-Key Feature Determination:
-* Inputs (which are features of a matching DNA segment in an alignment) to function that must exceed threshold to be called key
-Inputs- 
-    Length of segment
-    Protein shape variation of segment (MSE kinda thing)
-    Number of Protein contacts in area
-'''
-# Key Residue Sites and Structures (Scoring System) --> To visualization
-# Estimated Key Feature Emergence
 #TODO: Add pop up description in matplotlib view (per-residue alignment scores, distance, etc.)
 #TODO: Add functionality to Plotly protein models with additional evolutionary trends
 #TODO: Annotate Code
@@ -141,15 +131,15 @@ def genContacts(dist_matrix, dist_thresh=8):
                 contacts[i][j] = contacts[j][i] = 1
     return contacts
 
-def keyContactAreas (dist_matrix, dist_thresh=8, seqDist_thresh=5, numContact_thresh=5, strictness=2):
+def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, strictness=2, minL=5):
     score = 0
     contactSegs = [[]]
     
-    for i in range(dist_matrix.shape[0]):
+    for i in range(contact_matrix.shape[0]):
         resContacts = 0
         
-        for j in range(dist_matrix.shape[1]):
-            if dist_matrix[i][j] < dist_thresh and abs(i - j) > seqDist_thresh:
+        for j in range(contact_matrix.shape[1]):
+            if contact_matrix[i][j] == 1 and abs(i - j) > seqDist_thresh:
                 resContacts += 1
         
         if (resContacts > numContact_thresh):
@@ -157,14 +147,14 @@ def keyContactAreas (dist_matrix, dist_thresh=8, seqDist_thresh=5, numContact_th
         else: score -= 1
                 
         if score > 0:
-            contactSegs[-1].append(i+1)
+            contactSegs[-1].append(i)
         elif len(contactSegs[-1]) != 0:
             contactSegs.append([])
     
-    return contactSegs
+    return cleanUp(contactSegs, minL)
 
 
-def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
+def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
     
@@ -186,11 +176,11 @@ def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
         if not passed: score -= 1
                 
         if score > 0:
-            keySegs[-1].append(i+1)
+            keySegs[-1].append(i)
         elif len(keySegs[-1]) != 0:
             keySegs.append([])
     
-    return keySegs
+    return cleanUp(keySegs, minL)
             
 def imposeStructure(pdb_structures):
     ref_structure = pdb_structures[0]
@@ -217,7 +207,7 @@ def calcVariance(imposed_structures):
     
     return np.mean(variance, axis=0)
 
-def keyVarAreas(variance, var_thresh=0.5, strictness=2):
+def keyVarAreas(variance, var_thresh=0.5, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
     
@@ -232,7 +222,7 @@ def keyVarAreas(variance, var_thresh=0.5, strictness=2):
         elif len(keySegs[-1]) != 0:
             keySegs.append([])
     
-    return keySegs
+    return cleanUp(keySegs, minL)
 
 if __name__ == '__main__':
     pdb_file = "treefam-pdb/treefam-pdb-mappings/samples/1jnx.pdb"

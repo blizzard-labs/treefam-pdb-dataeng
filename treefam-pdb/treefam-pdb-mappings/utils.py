@@ -3,12 +3,10 @@ import pandas as pd
 import json
 from json import JSONEncoder
 
-#Convert NumPy to CSV
 def numpy2csv(array, name):
     DF = pd.DataFrame(array)
     DF.to_csv(name)
 
-#Convert CSV to NumPy
 def csv2numpy(csv):
     raw = np.genfromtxt(csv, delimiter=',')
     return (raw[1:raw.shape[0], 1:raw.shape[1]])
@@ -29,7 +27,10 @@ def json2numpy(jFile):
         decoded = json.load(read_file)
         return(np.asarray(decoded['array']))
 
-if __name__ == '__main__':
-    numpy2json(np.array([[11 ,22, 33], [44, 55, 66], [77, 88, 99]]), "mapping.json")
-    print(json2numpy("mapping.json"))
+def cleanUp(keySegs_array, minL):
+    newArray = []
+    for segment in keySegs_array:
+        if len(segment) != 0 and len(segment) > minL:
+            newArray.append((segment[0] + 1, segment[-1] + 1))
+    return newArray
     
