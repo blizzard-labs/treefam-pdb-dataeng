@@ -33,4 +33,3 @@ if __name__ == '__main__':
     numpy2json(np.array([[11 ,22, 33], [44, 55, 66], [77, 88, 99]]), "mapping.json")
     print(json2numpy("mapping.json"))
     
-    

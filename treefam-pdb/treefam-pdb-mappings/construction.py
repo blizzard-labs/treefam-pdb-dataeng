@@ -1,14 +1,14 @@
 #Krishna Bhatt @ Holmes Lab (UC Berkeley) 2024
-
 #Standalone testing for new features (Outside of pipeline)
 
 import numpy as np
+import os
 
 from Bio import AlignIO, Align
-from Bio.PDB import PDBParser
+from Bio.PDB import PDBParser, Superimposer
 from Bio.SeqUtils import seq1 as three2one
 
-from utils import numpy2json, json2numpy
+from utils import numpy2json, json2numpy, numpy2csv
  
 #! CONSTRUCTION ZONE
 
@@ -43,8 +43,6 @@ def load_pdb_and_generate_contacts(pdb_file, distance_threshold=8.0):
         for j in range(i+1, n):
             distance = ca_atoms[i] - ca_atoms[j]
             contact_matrix[i, j] = contact_matrix[j, i] = distance
-            #if distance < distance_threshold:
-                #contact_matrix[i, j] = contact_matrix[j, i] = 1
 
     return contact_matrix, "".join([three2one(atom.get_parent().get_resname()) for atom in ca_atoms])
 
@@ -87,7 +85,7 @@ def create_pdb_to_alignment_mapping(pdb_sequence, treefam_alignment, match_thres
             for i, j in zip(range(pdb_slice[0], pdb_slice[1]), range(treefam_slice[0], treefam_slice[1])):
                 pdb_to_aln[i] = j - treefam_start
 
-        return pdb_to_aln, best_record.id
+        return pdb_to_aln, best_record.id, best_alignment
     else:
         raise ValueError(f"No sufficiently matching sequence found. Best match score: {best_score:.2f}")
 
@@ -106,7 +104,7 @@ def map_contacts_to_alignment(contact_matrix, pdb_to_aln_mapping, alignment_leng
                 
     return alignment_contacts
 
-#Main workflow
+#Main Mapping workflow
 def mapping(alignment_f, pdb_f, contact_matrix_f, out, match_threshold=1.5):
     alignment = AlignIO.read(alignment_f, "fasta")
     cm, pdb_sequence = load_pdb_and_generate_contacts(pdb_f)
@@ -118,6 +116,7 @@ def mapping(alignment_f, pdb_f, contact_matrix_f, out, match_threshold=1.5):
     return(alignment_contacts)
 
 #Testing Workflow
+'''
 if __name__ == "__main__":
     
     pdb_file = "treefam-pdb/treefam-pdb-mappings/samples/1jnx.pdb"
@@ -132,3 +131,115 @@ if __name__ == "__main__":
     new = json2numpy("mapping.json")
     print(new.shape)
     numpy2json(new, "mapping2.json")
+'''
+
+def genContacts(dist_matrix, dist_thresh=8):
+    contacts = np.zeros(dist_matrix.shape)
+    for i in range(0, dist_matrix.shape[0]):
+        for j in range(0, dist_matrix.shape[1]):
+            if dist_matrix[i][j] < dist_thresh:
+                contacts[i][j] = contacts[j][i] = 1
+    return contacts
+
+def keyContactAreas (dist_matrix, dist_thresh=8, seqDist_thresh=5, numContact_thresh=5, strictness=2):
+    score = 0
+    contactSegs = [[]]
+    
+    for i in range(dist_matrix.shape[0]):
+        resContacts = 0
+        
+        for j in range(dist_matrix.shape[1]):
+            if dist_matrix[i][j] < dist_thresh and abs(i - j) > seqDist_thresh:
+                resContacts += 1
+        
+        if (resContacts > numContact_thresh):
+            score = strictness
+        else: score -= 1
+                
+        if score > 0:
+            contactSegs[-1].append(i+1)
+        elif len(contactSegs[-1]) != 0:
+            contactSegs.append([])
+    
+    return contactSegs
+
+
+def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
+    score = 0
+    keySegs = [[]]
+    
+    for i in range(len(alignment[0].seq)):
+        resMatches = {}
+        passed = False
+        
+        for j in range(len(alignment)):
+            if (alignment[j].seq)[i] in resMatches:
+                resMatches[(alignment[j].seq)[i]] += 1
+            else:
+                resMatches[(alignment[j].seq)[i]] = 1
+        
+        for res in resMatches:
+            if resMatches[res] > numMatches_thresh * len(alignment):
+                score = strictness
+                passed = True
+                
+        if not passed: score -= 1
+                
+        if score > 0:
+            keySegs[-1].append(i+1)
+        elif len(keySegs[-1]) != 0:
+            keySegs.append([])
+    
+    return keySegs
+            
+def imposeStructure(pdb_structures):
+    ref_structure = pdb_structures[0]
+    aligner = Superimposer()
+    
+    for structure in pdb_structures[1:]:
+        ref_atoms = [atom for atom in ref_structure.get_atoms() if atom.name == 'CA']
+        atoms = [atom for atom in structure.get_atoms() if atom.name == 'CA']
+        
+        aligner.set_atoms(ref_atoms, atoms)
+        aligner.apply(structure.get_atoms())
+    
+    return pdb_structures
+
+def calcVariance(imposed_structures):
+    all_coords = []
+    
+    for structure in imposed_structures:
+        coords = [atom.coord for atom in structure.get_atoms() if atom.name == 'CA']
+        all_coords.append(coords)
+
+    all_coords = np.array(all_coords)
+    variance = np.var(all_coords, axis=0)
+    
+    return np.mean(variance, axis=0)
+
+def keyVarAreas(variance, var_thresh=0.5, strictness=2):
+    score = 0
+    keySegs = [[]]
+    
+    for i, var in enumerate(variance):
+        if var < var_thresh:
+            score = strictness
+        else:
+            score -= 1
+            
+        if score > 0:
+            keySegs[-1].append(i)
+        elif len(keySegs[-1]) != 0:
+            keySegs.append([])
+    
+    return keySegs
+
+if __name__ == '__main__':
+    pdb_file = "treefam-pdb/treefam-pdb-mappings/samples/1jnx.pdb"
+    treefam_alignment_file = "treefam-pdb/treefam-pdb-mappings/samples/TF105060.fa"
+    dist_matrix, pdb_sequence = load_pdb_and_generate_contacts(pdb_file)
+    treefam_alignment = load_treefam_alignment(treefam_alignment_file)
+    #numpy2csv(genContacts(dist_matrix), 'contacts.csv')
+    
+    #print(contactArea(dist_matrix))
+    print(keyAlnAreas(treefam_alignment))

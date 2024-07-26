@@ -11,7 +11,7 @@ import os
 import numpy as np
 
 from Bio import AlignIO, Align
-from Bio.PDB import PDBParser
+from Bio.PDB import PDBParser, Superimposer
 from Bio.SeqUtils import seq1 as three2one
 
 from utils import numpy2json, json2numpy
@@ -20,11 +20,11 @@ from utils import numpy2json, json2numpy
 #* Data Loading ==================================================================================================
 #*
 
-# Loading TreeFam Alignments with AlignIO Module
+# Loading TreeFam multiple sequence alignments
 def load_treefam_alignment(alignment_file):
     return AlignIO.read(alignment_file, "fasta")
 
-# Loading PDB Files (headers, structures, residue sequences)
+# Loading PDB family (headers, structures, residue sequences)
 def load_pdb_family(fam_directory):
     parser = PDBParser()
     pdb_family = []
@@ -40,7 +40,7 @@ def load_pdb_family(fam_directory):
 
     return pdb_family
 
-# Load Distance Matrices from JSON Files
+# Load distance matrices from JSON files
 def load_distances(dist_directory):
     dist_family = []
     
@@ -50,6 +50,48 @@ def load_distances(dist_directory):
         dist_family.append(distance_matrix)
     
     return dist_family
+
+#*
+#* Emergent Data =================================================================================================
+#*
+
+# Convert distance matrices to contact matrices
+def dist2contacts (dist_matrix, dist_thresh=8):
+    contacts = np.zeros(dist_matrix.shape)
+    
+    for i in range(0, dist_matrix.shape[0]):
+        for j in range(0, dist_matrix.shape[1]):
+            if dist_matrix[i][j] < dist_thresh:
+                contacts[i][j] = contacts[j][i] = 1
+    
+    return contacts
+
+# Superimpose protein structures on reference (Similar to Residue Alignments)
+def imposeStructure(pdb_structures, ref_index):
+    ref_structure = pdb_structures[ref_index]
+    aligner = Superimposer()
+    
+    for structure in pdb_structures[1:]:
+        ref_atoms = [atom for atom in ref_structure.get_atoms() if atom.name == 'CA']
+        atoms = [atom for atom in structure.get_atoms() if atom.name == 'CA']
+        
+        aligner.set_atoms(ref_atoms, atoms)
+        aligner.apply(structure.get_atoms())
+    
+    return pdb_structures
+
+# Calculate variance per residue in PDB structures
+def calcVariance(imposed_structures):
+    all_coords = []
+    
+    for structure in imposed_structures:
+        coords = [atom.coord for atom in structure.get_atoms() if atom.name == 'CA']
+        all_coords.append(coords)
+
+    all_coords = np.array(all_coords)
+    variance = np.var(all_coords, axis=0)
+    
+    return np.mean(variance, axis=0)
 
 #*
 #* Distance Matrices to Alignment Mapping ========================================================================
@@ -80,7 +122,7 @@ def pdb2tree_mapping(pdb_seq, tree_seq, match_threshold=1.5):
     else:
         raise ValueError("PDB Structure Sequence does not sufficiently match the TreeFam Residue Sequence")
 
-# Mapping Distance Matrix to TreeFam Alignment Shape
+# Mapping distance matrix to treeFam alignment shape
 def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
     tree_contacts = np.full((treeSeq_length, treeSeq_length), -1)
     
@@ -94,10 +136,79 @@ def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
     return tree_contacts
 
 #*
-#* Key Feature Determination =====================================================================================
+#* Key Segment Determination =====================================================================================
 #*
 
+# Determine key segments with similar residue sequences w/ diminishing scores
+def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2):
+    score = 0
+    keySegs = [[]]
+    
+    for i in range(len(alignment[0].seq)):
+        resMatches = {}
+        passed = False
+        
+        for j in range(len(alignment)):
+            if (alignment[j].seq)[i] in resMatches:
+                resMatches[(alignment[j].seq)[i]] += 1
+            else:
+                resMatches[(alignment[j].seq)[i]] = 1
+        
+        for res in resMatches:
+            if resMatches[res] > numMatches_thresh * len(alignment):
+                score = strictness
+                passed = True
+                
+        if not passed: score -= 1
+                
+        if score > 0:
+            keySegs[-1].append(i+1)
+        elif len(keySegs[-1]) != 0:
+            keySegs.append([])
+    
+    return keySegs
 
+# Determine key segments with high contact density w/ diminishing scores
+# Inputs: seqDist_thresh (How far a residue has to be from each residue to be counted a contact), numContact_thresh (How many contacts a residue must have to be considered key)
+def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, strictness=2):
+    score = 0
+    contactSegs = [[]]
+    
+    for i in range(contact_matrix.shape[0]):
+        resContacts = 0
+        
+        for j in range(contact_matrix.shape[1]):
+            if contact_matrix[i][j] == 1 and abs(i - j) > seqDist_thresh:
+                resContacts += 1
+        
+        if (resContacts > numContact_thresh):
+            score = strictness
+        else: score -= 1
+                
+        if score > 0:
+            contactSegs[-1].append(i+1)
+        elif len(contactSegs[-1]) != 0:
+            contactSegs.append([])
+    
+    return contactSegs
+
+# Determine key segments of low structural variance w/ diminishing scores
+def keyVarAreas(variance, var_thresh=0.5, strictness=2):
+    score = 0
+    keySegs = [[]]
+    
+    for i, var in enumerate(variance):
+        if var < var_thresh:
+            score = strictness
+        else:
+            score -= 1
+            
+        if score > 0:
+            keySegs[-1].append(i)
+        elif len(keySegs[-1]) != 0:
+            keySegs.append([])
+    
+    return keySegs
 
 #*
 #* Pipeline Integration & Testing ================================================================================
