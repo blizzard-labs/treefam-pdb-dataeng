@@ -1,14 +1,5 @@
-
-#*
-#* Imports ======================================================================================================
-#*
-
 import shutil
 import os
-
-#*
-#* Defaults ======================================================================================================
-#*
 
 def prepareDefaults(ref_structure, file_destination, key_aln, key_cnt, key_var, color='red'):
     oFile = os.path.join(file_destination, 'pml_script.py')
