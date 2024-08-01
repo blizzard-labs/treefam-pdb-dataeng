@@ -84,16 +84,19 @@ def imposeStructure(pdb_structures, ref_index):
 
 # Calculate variance per residue in PDB structures
 def calcVariance(imposed_structures):
+    min_ca_atoms = min(sum(1 for atom in structure.get_atoms() if atom.name == 'CA') 
+                       for structure in imposed_structures)
+
     all_coords = []
-    
     for structure in imposed_structures:
-        coords = [atom.coord for atom in structure.get_atoms() if atom.name == 'CA']
+        coords = [atom.coord for atom in structure.get_atoms() if atom.name == 'CA'][:min_ca_atoms]
         all_coords.append(coords)
 
     all_coords = np.array(all_coords)
     variance = np.var(all_coords, axis=0)
     
-    return np.mean(variance, axis=0)
+    return np.mean(variance, axis=1), all_coords
+
 
 #*
 #* Distance Matrices to Alignment Mapping ========================================================================
@@ -172,16 +175,17 @@ def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
 
 # Determine key segments with high contact density w/ diminishing scores
 # Inputs: seqDist_thresh (How far a residue has to be from each residue to be counted a contact), numContact_thresh (How many contacts a residue must have to be considered key)
-def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, strictness=2, minL=5):
+def keyContactAreas (contact_matrices, seqDist_thresh=5, numContact_thresh=20, strictness=2, minL=5):
     score = 0
     contactSegs = [[]]
     
-    for i in range(contact_matrix.shape[0]):
+    for i in range(contact_matrices.shape[1]):
         resContacts = 0
         
-        for j in range(contact_matrix.shape[1]):
-            if contact_matrix[i][j] == 1 and abs(i - j) > seqDist_thresh:
-                resContacts += 1
+        for g in range(contact_matrices.shape[0]):
+            for j in range(contact_matrices.shape[2]):
+                if contact_matrices[g][i][j] == 1 and abs(i - j) > seqDist_thresh:
+                    resContacts += 1
         
         if (resContacts > numContact_thresh):
             score = strictness
@@ -195,10 +199,10 @@ def keyContactAreas (contact_matrix, seqDist_thresh=5, numContact_thresh=5, stri
     return cleanUp(contactSegs, minL)
 
 # Determine key segments of low structural variance w/ diminishing scores
-def keyVarAreas(variance, var_thresh=0.5, strictness=2, minL=5):
+def keyVarAreas(variance, all_coords, var_thresh=0.5, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
-    
+        
     for i, var in enumerate(variance):
         if var < var_thresh:
             score = strictness

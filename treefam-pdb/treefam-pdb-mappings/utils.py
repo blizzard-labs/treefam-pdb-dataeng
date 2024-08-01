@@ -31,6 +31,6 @@ def cleanUp(keySegs_array, minL):
     newArray = []
     for segment in keySegs_array:
         if len(segment) != 0 and len(segment) > minL:
-            newArray.append((segment[0] + 1, segment[-1] + 1))
+            newArray.append(str(segment[0] + 1) + '-' + str(segment[-1] + 1))
     return newArray
     
