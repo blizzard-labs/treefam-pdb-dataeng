@@ -27,7 +27,7 @@ cmd.set('cartoon_highlight_color', 'grey75')
 
 cmd.bg_color('black')
 
-#select somestuff, resi 1666-1683 or resi 1777-1800 or resi 1646-1651
+#Construct commands to highlight important segments using PyMOL selections
 
 alnCommand = ""
 for i, seg in enumerate(alnAreas):

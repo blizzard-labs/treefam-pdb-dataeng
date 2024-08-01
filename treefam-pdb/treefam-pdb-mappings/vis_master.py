@@ -1,14 +1,19 @@
 import shutil
 import os
 
+#Preparing the pml_script.py file for execution in PyMOL
+
 def prepareDefaults(ref_structure, file_destination, key_aln, key_cnt, key_var, color='red'):
+    #Set destination for the pml_script.py
     oFile = os.path.join(file_destination, 'pml_script.py')
     
     if os.path.isfile(oFile):
         raise ValueError ('There an existing PyMOL script at the target location')
     
+    #Copy pml_script.py template within repository
     shutil.copyfile(__file__.replace('vis_master.py', 'pml_script.py'), oFile)
     
+    #Edit visual information within executable
     with open (oFile, 'r') as f:
         lines = f.read().split('\n')
         line_1 = 'name = {}'.format("'" + ref_structure + "'")
@@ -21,5 +26,6 @@ def prepareDefaults(ref_structure, file_destination, key_aln, key_cnt, key_var, 
     
     with open(oFile, 'w') as f:
         f.write(new_file)
-
-prepareDefaults('1jnx', '/Users/krishna/Projects', ["1667-1741", "1771-1800"], ["1667-1741", "1771-1800"], ["1667-1741", "1771-1800"])
+        
+#Example Usage:       
+#prepareDefaults('1jnx', '/Users/krishna/Projects', ["1667-1741", "1771-1800"], ["1667-1741", "1771-1800"], ["1667-1741", "1771-1800"])

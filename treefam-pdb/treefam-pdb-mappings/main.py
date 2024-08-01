@@ -1,8 +1,8 @@
 #Krishna Bhatt @ Holmes Lab (UC Berkeley) 2024
 #Integrated Pipeline Product
 
-#! CONSTRUCTION IN PROGRESS
-# Key Protein Structure Segment Determination NOT tested (waiting on MSA 2 PDB mappings)
+#! INCOMPLETE TESTING
+# Code may not work as expected as full pipeline testing has not been completed
 
 #*
 #* Imports =======================================================================================================
@@ -31,11 +31,13 @@ def load_pdb_family(fam_directory):
     parser = PDBParser()
     pdb_family = []
     
+    #Looping through the protein family directory and isolating protein structures and sequences
     for filename in os.listdir(fam_directory):
         pdb_file = os.path.join(fam_directory, filename)
-        
         structure = parser.get_structure("protein", pdb_file)
-        ca_atoms = [atom for atom in structure.get_atoms() if atom.name == "CA"]
+        
+        #CA atoms as residue indicators
+        ca_atoms = [atom for atom in structure.get_atoms() if atom.name == "CA"] 
         res_sequence = "".join([three2one(atom.get_parent().get_resname()) for atom in ca_atoms])
         
         pdb_family.append((parser.get_header("protein", pdb_file), structure, res_sequence))
@@ -61,6 +63,7 @@ def load_distances(dist_directory):
 def dist2contacts (dist_matrix, dist_thresh=8):
     contacts = np.zeros(dist_matrix.shape)
     
+    #Loop through and develop contacts based on threshold (default 8 Angstrom)
     for i in range(0, dist_matrix.shape[0]):
         for j in range(0, dist_matrix.shape[1]):
             if dist_matrix[i][j] < dist_thresh:
@@ -70,7 +73,7 @@ def dist2contacts (dist_matrix, dist_thresh=8):
 
 # Superimpose protein structures on reference (Similar to Residue Alignments)
 def imposeStructure(pdb_structures, ref_index):
-    ref_structure = pdb_structures[ref_index]
+    ref_structure = pdb_structures[ref_index] #Reference structure to align to
     aligner = Superimposer()
     
     for structure in pdb_structures[1:]:
@@ -84,17 +87,21 @@ def imposeStructure(pdb_structures, ref_index):
 
 # Calculate variance per residue in PDB structures
 def calcVariance(imposed_structures):
+    #Find the shortest protein sequence to eliminate inhomegenous variance matrices
     min_ca_atoms = min(sum(1 for atom in structure.get_atoms() if atom.name == 'CA') 
                        for structure in imposed_structures)
 
+    #Find all coordinates of residues in proteins
     all_coords = []
     for structure in imposed_structures:
         coords = [atom.coord for atom in structure.get_atoms() if atom.name == 'CA'][:min_ca_atoms]
         all_coords.append(coords)
 
+    #Calculating variance and convert 3D array (seqs, res, coord) into 2D (res, coords)
     all_coords = np.array(all_coords)
     variance = np.var(all_coords, axis=0)
     
+    #Convert to 1D matrix of variance in each residue
     return np.mean(variance, axis=1), all_coords
 
 
@@ -104,6 +111,8 @@ def calcVariance(imposed_structures):
        
 # Create a dictionary mapping from each PDB residue to corresponding TreeFam columns
 def pdb2tree_mapping(pdb_seq, tree_seq, match_threshold=1.5):
+    
+    #Align TreeFam Protein Sequence to PDB-derived protein sequence to confirm a match
     aligner = Align.PairwiseAligner()
     aligner.mode = 'local'
     aligner.match_score = 2
@@ -119,6 +128,7 @@ def pdb2tree_mapping(pdb_seq, tree_seq, match_threshold=1.5):
         aligned_pdb, aligned_treefam = pdbtree_aln.aligned
         tree_start = aligned_treefam[0][0]
         
+        #Mapping each PDB sequence residue to a residue in the provided treefam sequence
         for (pdb_slice, tree_slice) in zip(aligned_pdb, aligned_treefam):
             for i, j in zip(range(pdb_slice[0], pdb_slice[1]), range(tree_slice[0], tree_slice[1])):
                 pdb2tree[i] = j - tree_start
@@ -131,6 +141,7 @@ def pdb2tree_mapping(pdb_seq, tree_seq, match_threshold=1.5):
 def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
     tree_contacts = np.full((treeSeq_length, treeSeq_length), -1)
     
+    #Utilize Alignment Shape to Construct Distance Matrix
     for i in range(dist_matrix.shape[0]):
         for j in range(dist_matrix.shape[1]):
             if i in pdb2tree_map and j in pdb2tree_map:
@@ -144,11 +155,12 @@ def dist2tree_mapping(dist_matrix, pdb2tree_map, treeSeq_length):
 #* Key Segment Determination =====================================================================================
 #*
 
-# Determine key segments with similar residue sequences w/ diminishing scores
+# Determine key segments with similar residue sequences w/ diminishing scores (Thresholds might need some fiddling)
 def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
     
+    #Looping through the length of the aliggnment, and adding scores to resmatches based on similarity
     for i in range(len(alignment[0].seq)):
         resMatches = {}
         passed = False
@@ -159,13 +171,16 @@ def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
             else:
                 resMatches[(alignment[j].seq)[i]] = 1
         
+        #Reseting score if no. of the most similar residue surpases numMatches_thresh
         for res in resMatches:
             if resMatches[res] > numMatches_thresh * len(alignment):
                 score = strictness
                 passed = True
-                
+            
+        #Diminish Score if no match    
         if not passed: score -= 1
-                
+        
+        #Add to key locations if the score is above 0        
         if score > 0:
             keySegs[-1].append(i)
         elif len(keySegs[-1]) != 0:
@@ -173,7 +188,7 @@ def keyAlnAreas(alignment, numMatches_thresh=0.9, strictness=2, minL=5):
     
     return cleanUp(keySegs, minL)
 
-# Determine key segments with high contact density w/ diminishing scores
+# Determine key segments with high contact density w/ diminishing scores (Thresholds might need some fiddling)
 # Inputs: seqDist_thresh (How far a residue has to be from each residue to be counted a contact), numContact_thresh (How many contacts a residue must have to be considered key)
 def keyContactAreas (contact_matrices, seqDist_thresh=5, numContact_thresh=20, strictness=2, minL=5):
     score = 0
@@ -182,15 +197,20 @@ def keyContactAreas (contact_matrices, seqDist_thresh=5, numContact_thresh=20, s
     for i in range(contact_matrices.shape[1]):
         resContacts = 0
         
+        # Loop through contact matrices and columns to find residues with high number of contacts which are a sertain distance away from itself in the sequence
         for g in range(contact_matrices.shape[0]):
             for j in range(contact_matrices.shape[2]):
                 if contact_matrices[g][i][j] == 1 and abs(i - j) > seqDist_thresh:
                     resContacts += 1
         
+        #Reseting score if no. of contacts on residue surpases numContact_thresh
         if (resContacts > numContact_thresh):
             score = strictness
+        
+        #Diminish Score
         else: score -= 1
-                
+        
+        #Add to key locations if the score is above 0        
         if score > 0:
             contactSegs[-1].append(i)
         elif len(contactSegs[-1]) != 0:
@@ -198,17 +218,20 @@ def keyContactAreas (contact_matrices, seqDist_thresh=5, numContact_thresh=20, s
     
     return cleanUp(contactSegs, minL)
 
-# Determine key segments of low structural variance w/ diminishing scores
-def keyVarAreas(variance, all_coords, var_thresh=0.5, strictness=2, minL=5):
+# Determine key segments of low structural variance w/ diminishing scores (Thresholds might need some fiddling)
+def keyVarAreas(variance, var_thresh=0.5, strictness=2, minL=5):
     score = 0
     keySegs = [[]]
-        
+    
+    #Loop through all variance per residue and reseting if below a threshold
     for i, var in enumerate(variance):
         if var < var_thresh:
             score = strictness
-        else:
-            score -= 1
-            
+        
+        #Diminishing Score
+        else: score -= 1
+        
+        #Add to key locations if the score is above 0
         if score > 0:
             keySegs[-1].append(i)
         elif len(keySegs[-1]) != 0:
@@ -216,8 +239,3 @@ def keyVarAreas(variance, all_coords, var_thresh=0.5, strictness=2, minL=5):
     
     return cleanUp(keySegs, minL)
 
-#*
-#* Pipeline Integration & Testing ================================================================================
-#*
-
-#TODO: Construct main pipeline based on others code and main runtime file
